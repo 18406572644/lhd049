@@ -220,6 +220,52 @@ export async function exportImageDialog(canvasElement: HTMLElement | null): Prom
   }
 }
 
+export async function exportProjectData(projectData: ProjectData, name: string): Promise<string | null> {
+  try {
+    const exportData = {
+      name,
+      exportedAt: new Date().toISOString(),
+      version: '1.0.0',
+      data: projectData,
+    }
+
+    const jsonStr = JSON.stringify(exportData, null, 2)
+
+    if (isTauri()) {
+      const defaultPath = await path.join(await path.desktopDir(), `${name}.json`)
+      
+      const savePath = await dialog.save({
+        title: '导出画板数据',
+        defaultPath,
+        filters: [{
+          name: 'JSON Data',
+          extensions: ['json']
+        }]
+      })
+
+      if (!savePath) return null
+
+      await fs.writeTextFile(savePath, jsonStr)
+
+      return savePath
+    } else {
+      const blob = new Blob([jsonStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      return name
+    }
+  } catch (error) {
+    console.error('Failed to export project data:', error)
+    return null
+  }
+}
+
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && window.__TAURI__ !== undefined
 }

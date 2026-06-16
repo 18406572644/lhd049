@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, setContext } from 'svelte'
   import { useProjectStore } from '@/stores/project'
   import { useTapeStore } from '@/stores/tape'
   import { useToast } from '@/utils/toast'
@@ -32,7 +32,11 @@
   let offsetY = 0
 
   $: scale = $zoom / 100
+  $: scaleRef.value = scale
   $: elements = $sortedElements
+
+  const scaleRef = { value: 1 }
+  setContext('canvasScale', scaleRef)
 
   const backgroundPatterns = [
     { id: 'none', name: '无', pattern: '' },
@@ -139,6 +143,10 @@
     projectStore.updateElement(id, updates)
   }
 
+  function handleElementDragEnd(id: string) {
+    showToast('位置已保存', 'info')
+  }
+
   function resetView() {
     offsetX = 0
     offsetY = 0
@@ -198,6 +206,7 @@
           isSelected={$selectedElementId === element.id}
           on:select={() => handleElementSelect(element.id)}
           on:update={(e) => handleElementUpdate(element.id, e.detail)}
+          on:drag-end={() => handleElementDragEnd(element.id)}
         />
       {/each}
 

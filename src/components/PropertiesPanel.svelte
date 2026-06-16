@@ -131,57 +131,57 @@
   }
 
   function updateElementProperty(key: string, value: any) {
-    if (selectedElement) {
-      projectStore.updateElement(selectedElement.id, { [key]: value })
+    if ($selectedElement) {
+      projectStore.updateElement($selectedElement.id, { [key]: value })
     }
   }
 
   function handleLockToggle() {
-    if (selectedElement) {
-      const newLocked = !selectedElement.locked
-      projectStore.updateElement(selectedElement.id, { locked: newLocked })
+    if ($selectedElement) {
+      const newLocked = !$selectedElement.locked
+      projectStore.updateElement($selectedElement.id, { locked: newLocked })
       showToast(newLocked ? '元素已锁定' : '元素已解锁', 'info')
     }
   }
 
   function handleBringToFront() {
-    if (selectedElement) {
-      projectStore.bringToFront(selectedElement.id)
+    if ($selectedElement) {
+      projectStore.bringToFront($selectedElement.id)
       showToast('已置于顶层', 'info')
     }
   }
 
   function handleSendToBack() {
-    if (selectedElement) {
-      projectStore.sendToBack(selectedElement.id)
+    if ($selectedElement) {
+      projectStore.sendToBack($selectedElement.id)
       showToast('已置于底层', 'info')
     }
   }
 
   function handleMoveForward() {
-    if (selectedElement) {
-      projectStore.moveForward(selectedElement.id)
+    if ($selectedElement) {
+      projectStore.moveForward($selectedElement.id)
       showToast('已上移一层', 'info')
     }
   }
 
   function handleMoveBackward() {
-    if (selectedElement) {
-      projectStore.moveBackward(selectedElement.id)
+    if ($selectedElement) {
+      projectStore.moveBackward($selectedElement.id)
       showToast('已下移一层', 'info')
     }
   }
 
   function handleDuplicate() {
-    if (selectedElement) {
-      projectStore.duplicateElement(selectedElement.id)
+    if ($selectedElement) {
+      projectStore.duplicateElement($selectedElement.id)
       showToast('元素已复制', 'success')
     }
   }
 
   function handleDelete() {
-    if (selectedElement && confirm('确定要删除这个元素吗？')) {
-      projectStore.deleteElement(selectedElement.id)
+    if ($selectedElement && confirm('确定要删除这个元素吗？')) {
+      projectStore.deleteElement($selectedElement.id)
       showToast('元素已删除', 'info')
     }
   }
@@ -190,6 +190,13 @@
     if (confirm('确定要清空画布吗？此操作不可撤销。')) {
       projectStore.clearCanvas()
       showToast('画布已清空', 'info')
+    }
+  }
+
+  function handleResetCanvas() {
+    if (confirm('确定要重置画板吗？这将清空所有内容并恢复默认设置，此操作不可撤销。')) {
+      projectStore.resetProject()
+      showToast('画板已重置为默认配置', 'success')
     }
   }
 </script>
@@ -211,7 +218,7 @@
       on:click={() => activeTab = 'element'}
       class:disabled={!hasSelection}
     >
-      🎨 元素 {hasSelection ? `(${selectedElement?.type})` : ''}
+      🎨 元素 {hasSelection ? `(${$selectedElement?.type})` : ''}
     </button>
   </div>
 
@@ -314,9 +321,14 @@
       </div>
 
       <div class="section">
-        <button class="btn btn-sm btn-warning w-full" on:click={handleClearCanvas}>
-          🗑️ 清空画布
-        </button>
+        <div class="action-grid">
+          <button class="btn btn-sm btn-warning" on:click={handleClearCanvas}>
+            🗑️ 清空画布
+          </button>
+          <button class="btn btn-sm btn-danger" on:click={handleResetCanvas}>
+            🔄 重置画板
+          </button>
+        </div>
       </div>
     {:else if activeTab === 'element'}
       {#if !hasSelection}
@@ -328,7 +340,7 @@
         <div class="section">
           <h4 class="section-title">
             位置与大小
-            <span class="element-type-tag">{selectedElement.type}</span>
+            <span class="element-type-tag">{$selectedElement.type}</span>
           </h4>
           <div class="grid-2">
             <div class="input-group">
@@ -336,7 +348,7 @@
               <input 
                 type="number" 
                 class="input" 
-                value={Math.round(selectedElement.x)}
+                value={Math.round($selectedElement.x)}
                 on:input={handleElementXInput}
               />
             </div>
@@ -345,7 +357,7 @@
               <input 
                 type="number" 
                 class="input" 
-                value={Math.round(selectedElement.y)}
+                value={Math.round($selectedElement.y)}
                 on:input={handleElementYInput}
               />
             </div>
@@ -354,7 +366,7 @@
               <input 
                 type="number" 
                 class="input" 
-                value={Math.round(selectedElement.width)}
+                value={Math.round($selectedElement.width)}
                 on:input={handleElementWidthInput}
                 min="20"
               />
@@ -364,7 +376,7 @@
               <input 
                 type="number" 
                 class="input" 
-                value={Math.round(selectedElement.height)}
+                value={Math.round($selectedElement.height)}
                 on:input={handleElementHeightInput}
                 min="20"
               />
@@ -380,7 +392,7 @@
               <input 
                 type="number" 
                 class="input" 
-                value={Math.round(selectedElement.rotation)}
+                value={Math.round($selectedElement.rotation)}
                 on:input={handleElementRotationInput}
                 min="-180"
                 max="180"
@@ -392,10 +404,10 @@
                 type="range" 
                 min="0" 
                 max="100" 
-                value={Math.round(selectedElement.opacity * 100)}
+                value={Math.round($selectedElement.opacity * 100)}
                 on:input={handleElementOpacityInput}
               />
-              <span class="range-value">{Math.round(selectedElement.opacity * 100)}%</span>
+              <span class="range-value">{Math.round($selectedElement.opacity * 100)}%</span>
             </div>
           </div>
         </div>
@@ -422,10 +434,10 @@
           <h4 class="section-title">操作</h4>
           <div class="action-grid">
             <button 
-              class="btn btn-sm {selectedElement.locked ? 'btn-warning' : ''}" 
+              class="btn btn-sm {$selectedElement.locked ? 'btn-warning' : ''}" 
               on:click={handleLockToggle}
             >
-              {selectedElement.locked ? '🔓 解锁' : '🔒 锁定'}
+              {$selectedElement.locked ? '🔓 解锁' : '🔒 锁定'}
             </button>
             <button class="btn btn-sm btn-secondary" on:click={handleDuplicate}>
               📋 复制

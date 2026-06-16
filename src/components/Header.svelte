@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import { useProjectStore } from '@/stores/project'
-  import { saveProjectDialog, openProjectDialog, exportImageDialog } from '@/services/tauri'
+  import { saveProjectDialog, openProjectDialog, exportImageDialog, exportProjectData } from '@/services/tauri'
   import { useToast } from '@/utils/toast'
   import { MACARON_COLORS } from '@/types'
 
@@ -53,6 +53,16 @@
     const result = await exportImageDialog(canvasEl)
     if (result) {
       showToast('成品图导出成功！', 'success')
+    }
+  }
+
+  async function handleExportData() {
+    const result = await exportProjectData(
+      projectStore.getProjectData(),
+      $currentProjectName
+    )
+    if (result) {
+      showToast('数据导出成功！', 'success')
     }
   }
 
@@ -138,8 +148,8 @@
     <button class="btn btn-sm btn-success" on:click={() => dispatch('open-projects')} title="项目管理">
       <span>📁</span> 项目
     </button>
-    <button class="btn btn-sm btn-secondary" on:click={handleExport} title="导出图片">
-      <span>🖼️</span> 导出
+    <button class="btn btn-sm btn-secondary" on:click={handleExportData} title="导出数据">
+      <span>�</span> 导出
     </button>
   </div>
 </header>

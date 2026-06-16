@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, getContext } from 'svelte'
   import { useTapeStore } from '@/stores/tape'
   import { createDragHandler, createResizeHandler, clamp } from '@/utils/drag'
   import type { AnyCanvasElement, TapeElement, NoteElement } from '@/types'
@@ -21,6 +21,8 @@
   let initialWidth: number
   let initialHeight: number
   let aspectRatio: number
+
+  const canvasScale: { value: number } = getContext('canvasScale') || { value: 1 }
 
   $: tapeId = element.type === 'tape' ? (element as TapeElement).tapeId : null
   $: tape = tapeId ? tapeStore.getTapeById(tapeId) : null
@@ -89,10 +91,13 @@
         initialY = element.y
       },
       onMove: (delta) => {
-        const scale = 1
+        const scale = canvasScale.value
         const newX = initialX + delta.x / scale
         const newY = initialY + delta.y / scale
         dispatch('update', { x: newX, y: newY })
+      },
+      onEnd: () => {
+        dispatch('drag-end')
       },
       button: 0,
       preventDefault: false,
@@ -116,7 +121,7 @@
         initialY = element.y
       },
       onResize: (handle, delta) => {
-        const scale = 1
+        const scale = canvasScale.value
         let newWidth = initialWidth
         let newHeight = initialHeight
         let newX = initialX
