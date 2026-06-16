@@ -58,18 +58,46 @@ function createTapeElement(
   }
 }
 
+interface CanvasConfig {
+  width?: number
+  height?: number
+  pattern?: string
+  opacity?: number
+  showGrid?: boolean
+  gridSize?: number
+  gridColor?: string
+  showRuler?: boolean
+  snapToGrid?: boolean
+}
+
 function createProjectData(
   bgColor: string,
   elements: AnyCanvasElement[],
-  width = 800,
-  height = 1000,
-  pattern = 'none'
+  config: CanvasConfig = {}
 ): ProjectData {
+  const {
+    width = 800,
+    height = 1000,
+    pattern = 'none',
+    opacity = 1,
+    showGrid = false,
+    gridSize = 30,
+    gridColor = 'rgba(93, 78, 94, 0.15)',
+    showRuler = false,
+    snapToGrid = false,
+  } = config
+
   return {
     canvasWidth: width,
     canvasHeight: height,
     backgroundColor: bgColor,
     backgroundPattern: pattern,
+    backgroundOpacity: opacity,
+    showGrid,
+    gridSize,
+    gridColor,
+    showRuler,
+    snapToGrid,
     elements,
   }
 }
@@ -118,7 +146,7 @@ const dailyTemplate: Template = {
       textAlign: 'center',
       borderColor: MACARON_COLORS.orange,
     }),
-  ]),
+  ], { pattern: 'lines', gridSize: 25 }),
 }
 
 const dailyTemplate2: Template = {
@@ -156,7 +184,7 @@ const dailyTemplate2: Template = {
       fontFamily: 'Segoe Script',
       borderColor: MACARON_COLORS.blue,
     }),
-  ]),
+  ], { pattern: 'dots', gridSize: 20 }),
 }
 
 const weeklyTemplate: Template = {
@@ -201,7 +229,7 @@ const weeklyTemplate: Template = {
       textAlign: 'center',
       borderColor: MACARON_COLORS.blue,
     }),
-  ]),
+  ], { showGrid: true, gridSize: 20, snapToGrid: true }),
 }
 
 const weeklyTemplate2: Template = {
@@ -243,7 +271,7 @@ const weeklyTemplate2: Template = {
       fontSize: 16,
       borderColor: MACARON_COLORS.green,
     }),
-  ]),
+  ], { pattern: 'grid', gridSize: 20, showGrid: true, snapToGrid: true }),
 }
 
 const monthlyTemplate: Template = {
@@ -281,7 +309,7 @@ const monthlyTemplate: Template = {
     }),
     createNoteElement(80, 870, 300, 80, '🎯 本月目标\n\n', MACARON_COLORS.yellowLight, 44, { borderColor: MACARON_COLORS.yellow }),
     createNoteElement(420, 870, 300, 80, '✨ 重要日子\n\n', MACARON_COLORS.pinkLight, 45, { borderColor: MACARON_COLORS.pink }),
-  ]),
+  ], { showGrid: true, gridSize: 25, snapToGrid: true }),
 }
 
 const travelTemplate: Template = {
@@ -312,7 +340,7 @@ const travelTemplate: Template = {
       fontSize: 18,
       borderColor: MACARON_COLORS.pink,
     }),
-  ]),
+  ], { pattern: 'dots', gridSize: 25 }),
 }
 
 const travelTemplate2: Template = {
@@ -337,7 +365,7 @@ const travelTemplate2: Template = {
     createNoteElement(300, 440, 200, 200, '🍰 探店2\n店名：\n评分：⭐⭐⭐⭐⭐\n备注：\n', MACARON_COLORS.yellowLight, 6, { borderColor: MACARON_COLORS.yellow }),
     createNoteElement(520, 440, 200, 200, '🌿 探店3\n店名：\n评分：⭐⭐⭐⭐⭐\n备注：\n', MACARON_COLORS.greenLight, 7, { borderColor: MACARON_COLORS.green, rotation: 2 }),
     createNoteElement(80, 670, 640, 180, '📸 今日最美瞬间\n\n\n\n\n', MACARON_COLORS.purpleLight, 8, { borderColor: MACARON_COLORS.purple }),
-  ]),
+  ], { pattern: 'dots', gridSize: 30 }),
 }
 
 const readingTemplate: Template = {
@@ -373,7 +401,7 @@ const readingTemplate: Template = {
       fontSize: 16,
       borderColor: MACARON_COLORS.orange,
     }),
-  ]),
+  ], { pattern: 'lines', gridSize: 25 }),
 }
 
 const readingTemplate2: Template = {
@@ -430,7 +458,7 @@ const readingTemplate2: Template = {
     }),
     createNoteElement(80, 840, 310, 100, '1. \n2. \n3. ', MACARON_COLORS.cream, 15),
     createNoteElement(410, 840, 310, 100, '4. \n5. \n6. ', MACARON_COLORS.white, 16),
-  ]),
+  ], { showGrid: true, gridSize: 20, snapToGrid: true }),
 }
 
 const festivalTemplate: Template = {
@@ -473,7 +501,7 @@ const festivalTemplate: Template = {
       fontSize: 60,
       textAlign: 'center',
     }),
-  ]),
+  ], { opacity: 1 }),
 }
 
 const festivalTemplate2: Template = {
@@ -520,7 +548,7 @@ const festivalTemplate2: Template = {
       fontSize: 48,
       textAlign: 'center',
     }),
-  ]),
+  ], { opacity: 1 }),
 }
 
 const festivalTemplate3: Template = {
@@ -567,7 +595,7 @@ const festivalTemplate3: Template = {
       color: '#FFFFFF',
       fontFamily: 'Segoe Script',
     }),
-  ]),
+  ], { opacity: 1 }),
 }
 
 export const BUILTIN_TEMPLATES: Template[] = [

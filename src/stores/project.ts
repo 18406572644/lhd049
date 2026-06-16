@@ -11,6 +11,12 @@ function createProjectStore() {
   const canvasHeight = writable(1000)
   const backgroundColor = writable(MACARON_COLORS.cream)
   const backgroundPattern = writable('none')
+  const backgroundOpacity = writable(1)
+  const showGrid = writable(false)
+  const gridSize = writable(30)
+  const gridColor = writable('rgba(93, 78, 94, 0.15)')
+  const showRuler = writable(false)
+  const snapToGrid = writable(false)
   const elements = writable<AnyCanvasElement[]>([])
   const selectedElementId = writable<string | null>(null)
   const zoom = writable(100)
@@ -42,6 +48,30 @@ function createProjectStore() {
 
   function setBackgroundPattern(pattern: string) {
     backgroundPattern.set(pattern)
+  }
+
+  function setBackgroundOpacity(opacity: number) {
+    backgroundOpacity.set(Math.max(0, Math.min(1, opacity)))
+  }
+
+  function setShowGrid(show: boolean) {
+    showGrid.set(show)
+  }
+
+  function setGridSize(size: number) {
+    gridSize.set(Math.max(10, Math.min(100, size)))
+  }
+
+  function setGridColor(color: string) {
+    gridColor.set(color)
+  }
+
+  function setShowRuler(show: boolean) {
+    showRuler.set(show)
+  }
+
+  function setSnapToGrid(snap: boolean) {
+    snapToGrid.set(snap)
   }
 
   function addElement(element: Omit<AnyCanvasElement, 'id' | 'zIndex'>) {
@@ -172,8 +202,15 @@ function createProjectStore() {
     canvasHeight.set(data.canvasHeight)
     backgroundColor.set(data.backgroundColor)
     backgroundPattern.set(data.backgroundPattern)
+    backgroundOpacity.set(data.backgroundOpacity ?? 1)
+    showGrid.set(data.showGrid ?? false)
+    gridSize.set(data.gridSize ?? 30)
+    gridColor.set(data.gridColor ?? 'rgba(93, 78, 94, 0.15)')
+    showRuler.set(data.showRuler ?? false)
+    snapToGrid.set(data.snapToGrid ?? false)
     elements.set(data.elements)
     selectedElementId.set(null)
+    resetSignal.update(s => s + 1)
   }
 
   function getProjectData(): ProjectData {
@@ -182,6 +219,12 @@ function createProjectStore() {
       canvasHeight: get(canvasHeight),
       backgroundColor: get(backgroundColor),
       backgroundPattern: get(backgroundPattern),
+      backgroundOpacity: get(backgroundOpacity),
+      showGrid: get(showGrid),
+      gridSize: get(gridSize),
+      gridColor: get(gridColor),
+      showRuler: get(showRuler),
+      snapToGrid: get(snapToGrid),
       elements: get(elements),
     }
   }
@@ -194,6 +237,12 @@ function createProjectStore() {
     canvasHeight.set(1000)
     backgroundColor.set(MACARON_COLORS.cream)
     backgroundPattern.set('none')
+    backgroundOpacity.set(1)
+    showGrid.set(false)
+    gridSize.set(30)
+    gridColor.set('rgba(93, 78, 94, 0.15)')
+    showRuler.set(false)
+    snapToGrid.set(false)
     elements.set([])
     selectedElementId.set(null)
     zoom.set(100)
@@ -208,6 +257,12 @@ function createProjectStore() {
     canvasHeight,
     backgroundColor,
     backgroundPattern,
+    backgroundOpacity,
+    showGrid,
+    gridSize,
+    gridColor,
+    showRuler,
+    snapToGrid,
     elements,
     selectedElementId,
     selectedElement,
@@ -219,6 +274,12 @@ function createProjectStore() {
     setCanvasSize,
     setBackgroundColor,
     setBackgroundPattern,
+    setBackgroundOpacity,
+    setShowGrid,
+    setGridSize,
+    setGridColor,
+    setShowRuler,
+    setSnapToGrid,
     addElement,
     updateElement,
     deleteElement,

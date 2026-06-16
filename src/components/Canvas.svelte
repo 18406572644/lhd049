@@ -18,6 +18,10 @@
     canvasHeight,
     backgroundColor,
     backgroundPattern,
+    backgroundOpacity,
+    showGrid,
+    gridSize,
+    gridColor,
     sortedElements,
     selectedElementId,
     selectedElement,
@@ -50,10 +54,32 @@
     { id: 'lines', name: '横线', pattern: 'repeating-linear-gradient(0deg, transparent, transparent 24px, rgba(93, 78, 94, 0.1) 24px, rgba(93, 78, 94, 0.1) 25px)' },
   ]
 
+  $: currentGridSize = $gridSize
+  $: currentGridColor = $gridColor
+  $: currentShowGrid = $showGrid
+  $: currentBackgroundOpacity = $backgroundOpacity
+
   function getPatternStyle(patternId: string): string {
     const pattern = backgroundPatterns.find(p => p.id === patternId)
     if (!pattern || patternId === 'none') return ''
-    return `${pattern.pattern}; background-size: ${patternId === 'dots' ? '20px 20px' : patternId === 'grid' ? '30px 30px' : '100% 25px'}`
+    const size = currentGridSize
+    if (patternId === 'dots') {
+      return `${pattern.pattern.replace('20px', `${size}px`)}; background-size: ${size}px ${size}px`
+    } else if (patternId === 'grid') {
+      return `linear-gradient(${currentGridColor} 1px, transparent 1px), linear-gradient(90deg, ${currentGridColor} 1px, transparent 1px); background-size: ${size}px ${size}px`
+    }
+    return `${pattern.pattern}; background-size: 100% 25px`
+  }
+
+  function getGridOverlayStyle(): string {
+    if (!currentShowGrid) return 'display: none;'
+    const size = currentGridSize
+    return `
+      background-image: 
+        linear-gradient(${currentGridColor} 1px, transparent 1px),
+        linear-gradient(90deg, ${currentGridColor} 1px, transparent 1px);
+      background-size: ${size}px ${size}px;
+    `
   }
 
   function handleCanvasClick(e: MouseEvent) {
@@ -201,10 +227,12 @@
           width: {$canvasWidth}px;
           height: {$canvasHeight}px;
           background-color: {$backgroundColor};
+          opacity: {currentBackgroundOpacity};
           {getPatternStyle($backgroundPattern)}
         "
         on:click={handleCanvasClick}
       >
+        <div class="grid-overlay" style="{getGridOverlayStyle()}"></div>
       {#each elements as element (element.id)}
         <CanvasElement
           element={element}
@@ -306,6 +334,13 @@
     &:hover {
       box-shadow: 0 15px 50px rgba(93, 78, 94, 0.25);
     }
+  }
+
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
   }
 
   .canvas-empty {

@@ -69,6 +69,12 @@ export interface ProjectData {
   canvasHeight: number
   backgroundColor: string
   backgroundPattern: string
+  backgroundOpacity: number
+  showGrid: boolean
+  gridSize: number
+  gridColor: string
+  showRuler: boolean
+  snapToGrid: boolean
   elements: AnyCanvasElement[]
 }
 

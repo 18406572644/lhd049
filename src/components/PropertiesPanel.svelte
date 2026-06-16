@@ -13,6 +13,12 @@
     canvasHeight,
     backgroundColor,
     backgroundPattern,
+    backgroundOpacity,
+    showGrid,
+    gridSize,
+    gridColor,
+    showRuler,
+    snapToGrid,
     currentCategory,
     categories
   } = projectStore
@@ -24,6 +30,12 @@
   $: currentCanvasHeight = $canvasHeight
   $: currentBackgroundColor = $backgroundColor
   $: currentBackgroundPattern = $backgroundPattern
+  $: currentBackgroundOpacity = $backgroundOpacity
+  $: currentShowGrid = $showGrid
+  $: currentGridSize = $gridSize
+  $: currentGridColor = $gridColor
+  $: currentShowRuler = $showRuler
+  $: currentSnapToGrid = $snapToGrid
   $: currentCategoryValue = $currentCategory
   $: currentCategories = $categories
   $: currentNote = hasSelection && $selectedElement?.type === 'note' ? ($selectedElement as NoteElement) : null
@@ -78,6 +90,31 @@
   function handleBackgroundColorInput(e: Event) {
     const target = e.target as HTMLInputElement
     projectStore.setBackgroundColor(target.value)
+  }
+
+  function handleBackgroundOpacityInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    projectStore.setBackgroundOpacity(Number(target.value) / 100)
+  }
+
+  function handleGridSizeInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    projectStore.setGridSize(Number(target.value))
+  }
+
+  function handleGridColorInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    projectStore.setGridColor(target.value)
+  }
+
+  function handleShowGridChange(e: Event) {
+    const target = e.target as HTMLInputElement
+    projectStore.setShowGrid(target.checked)
+  }
+
+  function handleSnapToGridChange(e: Event) {
+    const target = e.target as HTMLInputElement
+    projectStore.setSnapToGrid(target.checked)
   }
 
   function handleElementXInput(e: Event) {
@@ -300,6 +337,83 @@
               {pattern.name}
             </button>
           {/each}
+        </div>
+      </div>
+
+      <div class="section">
+        <h4 class="section-title">背景透明度</h4>
+        <div class="input-group">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <input 
+              type="range" 
+              min="10" 
+              max="100" 
+              value={Math.round(currentBackgroundOpacity * 100)}
+              on:input={handleBackgroundOpacityInput}
+              style="flex: 1; margin-right: 12px;"
+            />
+            <span class="range-value">{Math.round(currentBackgroundOpacity * 100)}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h4 class="section-title">网格设置</h4>
+        <div class="toggle-row">
+          <label class="toggle-label">
+            <input 
+              type="checkbox" 
+              checked={currentShowGrid}
+              on:change={handleShowGridChange}
+            />
+            <span>显示网格</span>
+          </label>
+        </div>
+        {#if currentShowGrid}
+          <div class="grid-controls">
+            <div class="input-group">
+              <label>网格间距</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="80" 
+                  value={currentGridSize}
+                  on:input={handleGridSizeInput}
+                  style="flex: 1;"
+                />
+                <span class="range-value">{currentGridSize}px</span>
+              </div>
+            </div>
+            <div class="input-group">
+              <label>网格颜色</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input 
+                  type="color" 
+                  class="color-picker"
+                  value={currentGridColor.startsWith('rgba') ? '#5D4E5E' : currentGridColor}
+                  on:input={handleGridColorInput}
+                />
+                <span style="font-size: 12px; color: var(--text-secondary);">
+                  {currentGridColor.startsWith('rgba') ? '带透明度' : currentGridColor}
+                </span>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <div class="section">
+        <h4 class="section-title">辅助功能</h4>
+        <div class="toggle-row">
+          <label class="toggle-label">
+            <input 
+              type="checkbox" 
+              checked={currentSnapToGrid}
+              on:change={handleSnapToGridChange}
+            />
+            <span>吸附到网格</span>
+          </label>
         </div>
       </div>
 
@@ -768,6 +882,40 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
+  }
+
+  .toggle-row {
+    margin-bottom: 8px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-family: var(--font-hand);
+    font-size: 14px;
+    color: var(--text-primary);
+    
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+  }
+
+  .grid-controls {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--macaron-cream);
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .empty-selection {
