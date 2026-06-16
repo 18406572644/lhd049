@@ -4,6 +4,8 @@
   import { useProjectStore } from '@/stores/project'
   import { listProjects, openProjectDialog, saveProjectDialog } from '@/services/tauri'
   import { useToast } from '@/utils/toast'
+  import { generateThumbnail } from '@/utils/thumbnail'
+  import { addRecentProject, projectToRecent } from '@/utils/recentProjects'
   import type { Project } from '@/types'
   import { DEFAULT_CATEGORIES } from '@/types'
 
@@ -21,12 +23,26 @@
   let loading = true
   let searchQuery = ''
   let selectedCategory = 'all'
+  let sortBy = 'updatedAt'
+  let sortOrder = 'desc'
 
-  $: filteredProjects = projects.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  $: filteredProjects = projects
+    .filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+    .sort((a, b) => {
+      let comparison = 0
+      if (sortBy === 'name') {
+        comparison = a.name.localeCompare(b.name, 'zh-CN')
+      } else if (sortBy === 'updatedAt') {
+        comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+      } else if (sortBy === 'createdAt') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      }
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
 
   async function loadProjects() {
     loading = true
@@ -42,6 +58,8 @@
       
       const category = DEFAULT_CATEGORIES.find(c => c.name === project.category) || DEFAULT_CATEGORIES[0]
       projectStore.setCategory(category)
+      
+      addRecentProject(projectToRecent(project))
       
       showToast(`已加载「${project.name}」`, 'success')
       dispatch('close')
@@ -59,14 +77,20 @@
   }
 
   async function handleSaveCurrent() {
+    const canvasEl = document.querySelector('.canvas-content') as HTMLElement
+    const thumbnail = await generateThumbnail(canvasEl)
+    
     const result = await saveProjectDialog(
       projectStore.getProjectData(),
       $currentProjectName,
       $currentCategory.name,
-      $currentProjectId || undefined
+      $currentProjectId || undefined,
+      thumbnail || undefined
     )
     
     if (result) {
+      projectStore.currentProjectId.set(result.project.id)
+      addRecentProject(projectToRecent(result.project, result.path))
       await loadProjects()
       showToast('保存成功', 'success')
     }
@@ -85,6 +109,20 @@
   function getCategoryColor(categoryName: string): string {
     const category = DEFAULT_CATEGORIES.find(c => c.name === categoryName)
     return category?.color || 'var(--macaron-gray)'
+  }
+
+  function toggleSort(field: string) {
+    if (sortBy === field) {
+      sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'
+    } else {
+      sortBy = field
+      sortOrder = 'desc'
+    }
+  }
+
+  function getSortIcon(field: string): string {
+    if (sortBy !== field) return '↕'
+    return sortOrder === 'desc' ? '↓' : '↑'
   }
 
   onMount(() => {
@@ -128,6 +166,24 @@
         {/each}
       </div>
       
+      <div class="sort-controls">
+        <span class="sort-label">排序：</span>
+        <button 
+          class="sort-btn {sortBy === 'updatedAt' ? 'active' : ''}"
+          on:click={() => toggleSort('updatedAt')}
+          title="按修改时间排序"
+        >
+          时间 {getSortIcon('updatedAt')}
+        </button>
+        <button 
+          class="sort-btn {sortBy === 'name' ? 'active' : ''}"
+          on:click={() => toggleSort('name')}
+          title="按名称排序"
+        >
+          名称 {getSortIcon('name')}
+        </button>
+      </div>
+      
       <div class="toolbar-actions">
         <button class="btn btn-sm btn-primary" on:click={handleImportProject}>
           📂 导入
@@ -157,20 +213,30 @@
       {:else}
         <div class="project-grid">
           {#each filteredProjects as project (project.id)}
-            <div class="project-card" on:click={() => handleOpenProject(project)}>
-              <div class="card-preview">
-                <div 
-                  class="preview-canvas"
-                  style="background-color: {project.data.backgroundColor}"
-                >
-                  {#if project.data.elements.length > 0}
-                    <div class="preview-elements">
+            <div 
+              class="project-card" 
+              on:click={() => handleOpenProject(project)}
+            >
+              <div class="card-thumbnail">
+                {#if project.thumbnail}
+                  <img 
+                    src={project.thumbnail} 
+                    alt={project.name}
+                    class="thumbnail-img"
+                    loading="lazy"
+                  />
+                {:else}
+                  <div 
+                    class="thumbnail-placeholder"
+                    style="background-color: {project.data.backgroundColor}"
+                  >
+                    {#if project.data.elements.length > 0}
                       <span class="element-count">{project.data.elements.length} 个元素</span>
-                    </div>
-                  {:else}
-                    <span class="empty-preview">空白</span>
-                  {/if}
-                </div>
+                    {:else}
+                      <span class="empty-hint">空白</span>
+                    {/if}
+                  </div>
+                {/if}
                 <div class="category-badge" style="background: {getCategoryColor(project.category)}">
                   {project.category}
                 </div>
@@ -178,8 +244,8 @@
               <div class="card-info">
                 <h4 class="project-name">{project.name}</h4>
                 <div class="project-meta">
-                  <span>📅 {formatDate(project.updatedAt)}</span>
-                  <span>📐 {project.data.canvasWidth}×{project.data.canvasHeight}</span>
+                  <span class="meta-item">📅 {formatDate(project.updatedAt)}</span>
+                  <span class="meta-item">📐 {project.data.canvasWidth}×{project.data.canvasHeight}</span>
                 </div>
               </div>
             </div>
@@ -214,7 +280,7 @@
 
   .modal-content {
     width: 100%;
-    max-width: 1000px;
+    max-width: 1100px;
     max-height: 100%;
     background: var(--macaron-white);
     border: 3px solid var(--text-primary);
@@ -284,8 +350,8 @@
   .modal-toolbar {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 16px 24px;
+    gap: 12px;
+    padding: 12px 24px;
     border-bottom: 2px dashed var(--macaron-gray);
     flex-wrap: wrap;
   }
@@ -295,7 +361,7 @@
     align-items: center;
     gap: 8px;
     flex: 1;
-    min-width: 200px;
+    min-width: 180px;
     
     .input {
       flex: 1;
@@ -304,17 +370,17 @@
 
   .category-filter {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-wrap: wrap;
   }
 
   .filter-btn {
-    padding: 6px 14px;
+    padding: 4px 10px;
     border: 2px solid var(--text-primary);
-    border-radius: 20px;
+    border-radius: 16px;
     background: var(--macaron-white);
     font-family: var(--font-hand);
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     transition: all var(--transition-fast);
     
@@ -324,20 +390,54 @@
     
     &.active {
       background: var(--cat-color, var(--macaron-pink));
-      box-shadow: 2px 2px 0 var(--text-primary);
+      box-shadow: 1px 1px 0 var(--text-primary);
+    }
+  }
+
+  .sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sort-label {
+    font-family: var(--font-hand);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .sort-btn {
+    padding: 4px 8px;
+    border: 1px solid var(--macaron-gray);
+    border-radius: var(--border-radius-sm);
+    background: var(--macaron-white);
+    font-family: var(--font-hand);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    
+    &:hover {
+      border-color: var(--text-secondary);
+      background: var(--macaron-cream);
+    }
+    
+    &.active {
+      border-color: var(--macaron-pink);
+      background: var(--macaron-pink);
+      color: white;
     }
   }
 
   .toolbar-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     margin-left: auto;
   }
 
   .project-list {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 20px 24px;
   }
 
   .loading-state,
@@ -379,7 +479,7 @@
 
   .project-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
   }
 
@@ -398,54 +498,63 @@
     }
   }
 
-  .card-preview {
+  .card-thumbnail {
     position: relative;
-    height: 140px;
+    width: 100%;
+    aspect-ratio: 200 / 250;
     border-bottom: 2px dashed var(--macaron-gray);
+    overflow: hidden;
   }
 
-  .preview-canvas {
+  .thumbnail-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .thumbnail-placeholder {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .preview-elements {
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 20px;
-    font-family: var(--font-hand);
-    font-size: 13px;
-    color: var(--text-primary);
-  }
-
-  .empty-preview {
-    font-family: var(--font-hand);
-    font-size: 14px;
-    color: var(--text-light);
+    
+    .element-count {
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 16px;
+      font-family: var(--font-hand);
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+    
+    .empty-hint {
+      font-family: var(--font-hand);
+      font-size: 13px;
+      color: var(--text-light);
+    }
   }
 
   .category-badge {
     position: absolute;
     top: 8px;
     right: 8px;
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 3px 8px;
+    border-radius: 10px;
     font-family: var(--font-hand);
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-primary);
     border: 1px solid var(--text-primary);
   }
 
   .card-info {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
   .project-name {
     font-family: var(--font-hand);
-    font-size: 16px;
+    font-size: 15px;
     color: var(--text-primary);
     margin-bottom: 6px;
     white-space: nowrap;
@@ -458,8 +567,8 @@
     flex-direction: column;
     gap: 2px;
     
-    span {
-      font-size: 11px;
+    .meta-item {
+      font-size: 10px;
       color: var(--text-secondary);
     }
   }
@@ -468,13 +577,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 24px;
+    padding: 12px 24px;
     border-top: 2px dashed var(--macaron-gray);
   }
 
   .footer-info {
     font-family: var(--font-hand);
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-secondary);
   }
 </style>

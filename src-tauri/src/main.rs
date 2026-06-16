@@ -10,6 +10,8 @@ struct Project {
     id: String,
     name: String,
     category: String,
+    #[serde(default)]
+    thumbnail: Option<String>,
     created_at: String,
     updated_at: String,
     data: serde_json::Value,

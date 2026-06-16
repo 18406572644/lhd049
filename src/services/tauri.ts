@@ -3,7 +3,7 @@ import { dialog, fs, path } from '@tauri-apps/api'
 import type { Project, TapeAsset, ProjectData } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 
-export async function saveProjectDialog(projectData: ProjectData, name: string, category: string, existingId?: string): Promise<string | null> {
+export async function saveProjectDialog(projectData: ProjectData, name: string, category: string, existingId?: string, thumbnail?: string): Promise<{ project: Project; path: string } | null> {
   try {
     const appDir = await path.appDataDir()
     const projectsDir = await path.join(appDir, 'projects')
@@ -16,6 +16,7 @@ export async function saveProjectDialog(projectData: ProjectData, name: string, 
       id: existingId || uuidv4(),
       name,
       category,
+      thumbnail,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       data: projectData,
@@ -39,7 +40,7 @@ export async function saveProjectDialog(projectData: ProjectData, name: string, 
       project
     })
 
-    return savePath
+    return { project, path: savePath }
   } catch (error) {
     console.error('Failed to save project:', error)
     return null
@@ -66,6 +67,19 @@ export async function openProjectDialog(): Promise<{ project: Project; path: str
     return { project, path: selected }
   } catch (error) {
     console.error('Failed to open project:', error)
+    return null
+  }
+}
+
+export async function loadProjectByPath(path: string): Promise<{ project: Project; path: string } | null> {
+  try {
+    const project = await invoke<Project>('load_project', {
+      path
+    })
+
+    return { project, path }
+  } catch (error) {
+    console.error('Failed to load project by path:', error)
     return null
   }
 }

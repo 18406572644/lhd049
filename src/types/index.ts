@@ -73,6 +73,7 @@ export interface Project {
   id: string
   name: string
   category: string
+  thumbnail?: string
   createdAt: string
   updatedAt: string
   data: ProjectData

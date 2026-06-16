@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte'
   import { useProjectStore } from '@/stores/project'
-  import { saveProjectDialog, openProjectDialog, exportImageDialog, exportProjectData } from '@/services/tauri'
+  import { saveProjectDialog, openProjectDialog, exportImageDialog, exportProjectData, loadProjectByPath } from '@/services/tauri'
   import { useToast } from '@/utils/toast'
-  import { MACARON_COLORS } from '@/types'
+  import { MACARON_COLORS, DEFAULT_CATEGORIES } from '@/types'
+  import { generateThumbnail } from '@/utils/thumbnail'
+  import { getRecentProjects, addRecentProject, projectToRecent } from '@/utils/recentProjects'
+  import type { RecentProject } from '@/utils/recentProjects'
 
   const dispatch = createEventDispatcher()
   const projectStore = useProjectStore()
@@ -15,6 +18,9 @@
     currentProjectId, 
     zoom 
   } = projectStore
+
+  let showOpenDropdown = false
+  let recentProjects: RecentProject[] = []
 
   function handleOpenTemplates() {
     dispatch('open-templates')
@@ -34,14 +40,21 @@
   }
 
   async function handleSave() {
+    const canvasEl = document.querySelector('.canvas-content') as HTMLElement
+    const thumbnail = await generateThumbnail(canvasEl)
+    
     const result = await saveProjectDialog(
       projectStore.getProjectData(),
       $currentProjectName,
       $currentCategory.name,
-      $currentProjectId || undefined
+      $currentProjectId || undefined,
+      thumbnail || undefined
     )
     
     if (result) {
+      projectStore.currentProjectId.set(result.project.id)
+      addRecentProject(projectToRecent(result.project, result.path))
+      recentProjects = getRecentProjects()
       showToast('排版方案保存成功！', 'success')
     }
   }
@@ -52,7 +65,54 @@
       projectStore.loadProjectData(result.project.data)
       projectStore.setProjectName(result.project.name)
       projectStore.currentProjectId.set(result.project.id)
+      
+      const category = DEFAULT_CATEGORIES.find(c => c.name === result.project.category) || DEFAULT_CATEGORIES[0]
+      projectStore.setCategory(category)
+      
+      addRecentProject(projectToRecent(result.project, result.path))
+      recentProjects = getRecentProjects()
+      
       showToast('排版方案加载成功！', 'success')
+    }
+    showOpenDropdown = false
+  }
+
+  async function handleOpenRecent(recent: RecentProject) {
+    if (!recent.path) {
+      showToast('无法找到项目路径', 'error')
+      return
+    }
+    
+    const result = await loadProjectByPath(recent.path)
+    if (result) {
+      projectStore.loadProjectData(result.project.data)
+      projectStore.setProjectName(result.project.name)
+      projectStore.currentProjectId.set(result.project.id)
+      
+      const category = DEFAULT_CATEGORIES.find(c => c.name === result.project.category) || DEFAULT_CATEGORIES[0]
+      projectStore.setCategory(category)
+      
+      addRecentProject(projectToRecent(result.project, result.path))
+      recentProjects = getRecentProjects()
+      
+      showToast('排版方案加载成功！', 'success')
+    } else {
+      showToast('项目文件不存在或已损坏', 'error')
+    }
+    showOpenDropdown = false
+  }
+
+  function toggleOpenDropdown() {
+    showOpenDropdown = !showOpenDropdown
+    if (showOpenDropdown) {
+      recentProjects = getRecentProjects()
+    }
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.open-dropdown-wrapper')) {
+      showOpenDropdown = false
     }
   }
 
@@ -105,6 +165,23 @@
       projectStore.setZoom(Math.round(scale * 100))
     }
   }
+
+  function formatDate(dateStr: string): string {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  onMount(() => {
+    recentProjects = getRecentProjects()
+    document.addEventListener('click', handleClickOutside)
+  })
+
+  onDestroy(() => {
+    document.removeEventListener('click', handleClickOutside)
+  })
 </script>
 
 <header class="header">
@@ -147,9 +224,44 @@
     <button class="btn btn-sm" on:click={handleNew} title="新建">
       <span>📄</span> 新建
     </button>
-    <button class="btn btn-sm" on:click={handleOpen} title="打开">
-      <span>📂</span> 打开
-    </button>
+    <div class="open-dropdown-wrapper">
+      <button class="btn btn-sm" on:click|stopPropagation={toggleOpenDropdown} title="打开">
+        <span>📂</span> 打开 <span class="dropdown-arrow">▾</span>
+      </button>
+      {#if showOpenDropdown}
+        <div class="open-dropdown" on:click|stopPropagation>
+          <div class="dropdown-header">
+            <span>最近打开</span>
+          </div>
+          {#if recentProjects.length === 0}
+            <div class="dropdown-empty">暂无记录</div>
+          {:else}
+            {#each recentProjects as recent (recent.id)}
+              <button class="dropdown-item" on:click={() => handleOpenRecent(recent)}>
+                <div class="recent-thumb">
+                  {#if recent.thumbnail}
+                    <img src={recent.thumbnail} alt={recent.name} />
+                  {:else}
+                    <span class="thumb-placeholder">🖼</span>
+                  {/if}
+                </div>
+                <div class="recent-info">
+                  <span class="recent-name">{recent.name}</span>
+                  <span class="recent-meta">
+                    <span class="recent-category">{recent.category}</span>
+                    <span class="recent-date">{formatDate(recent.updatedAt)}</span>
+                  </span>
+                </div>
+              </button>
+            {/each}
+          {/if}
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item dropdown-browse" on:click={handleOpen}>
+            <span>📂</span> 浏览文件...
+          </button>
+        </div>
+      {/if}
+    </div>
     <button class="btn btn-sm btn-primary" on:click={handleSave} title="保存">
       <span>💾</span> 保存
     </button>
@@ -289,5 +401,148 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .open-dropdown-wrapper {
+    position: relative;
+  }
+
+  .dropdown-arrow {
+    font-size: 10px;
+    margin-left: 2px;
+  }
+
+  .open-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 280px;
+    background: var(--macaron-white);
+    border: 2px solid var(--text-primary);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+    animation: slideDown 0.2s ease;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .dropdown-header {
+    padding: 10px 16px;
+    font-family: var(--font-hand);
+    font-size: 14px;
+    color: var(--text-secondary);
+    background: var(--macaron-cream);
+    border-bottom: 2px dashed var(--macaron-gray);
+  }
+
+  .dropdown-empty {
+    padding: 24px 16px;
+    text-align: center;
+    font-family: var(--font-hand);
+    font-size: 14px;
+    color: var(--text-light);
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--transition-fast);
+    font-family: var(--font-hand);
+
+    &:hover {
+      background: var(--macaron-cream);
+    }
+  }
+
+  .recent-thumb {
+    width: 40px;
+    height: 50px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--macaron-gray);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--macaron-cream);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .thumb-placeholder {
+      font-size: 16px;
+      opacity: 0.5;
+    }
+  }
+
+  .recent-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .recent-name {
+    font-size: 14px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .recent-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .recent-category {
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--macaron-pink);
+    color: var(--text-primary);
+    font-size: 10px;
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    background: var(--macaron-gray);
+    margin: 4px 0;
+  }
+
+  .dropdown-browse {
+    justify-content: center;
+    gap: 8px;
+    color: var(--macaron-pink);
+    font-size: 13px;
+
+    &:hover {
+      background: var(--macaron-pink);
+      color: white;
+    }
   }
 </style>
