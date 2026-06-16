@@ -59,4 +59,7 @@ function createBrushStore() {
   }
 }
 
-export const useBrushStore = createBrushStore
+const _brushInstance = createBrushStore()
+export function useBrushStore() {
+  return _brushInstance
+}

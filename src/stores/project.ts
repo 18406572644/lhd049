@@ -327,4 +327,7 @@ function createProjectStore() {
   }
 }
 
-export const useProjectStore = createProjectStore
+const _projectInstance = createProjectStore()
+export function useProjectStore() {
+  return _projectInstance
+}

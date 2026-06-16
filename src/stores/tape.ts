@@ -61,4 +61,7 @@ function createTapeStore() {
   }
 }
 
-export const useTapeStore = createTapeStore
+const _tapeInstance = createTapeStore()
+export function useTapeStore() {
+  return _tapeInstance
+}

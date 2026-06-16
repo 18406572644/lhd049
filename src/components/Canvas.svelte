@@ -49,9 +49,6 @@
   let panStartY = 0
   let offsetX = 0
   let offsetY = 0
-  let eraserCursorX = 0
-  let eraserCursorY = 0
-  let showEraserCursor = false
 
   $: scale = $zoom / 100
   $: scaleRef.value = scale
@@ -135,10 +132,6 @@
       offsetX = e.clientX - panStartX
       offsetY = e.clientY - panStartY
       e.preventDefault()
-    }
-    if ($brushActive && $brushMode === 'eraser') {
-      eraserCursorX = e.clientX
-      eraserCursorY = e.clientY
     }
   }
 
@@ -495,18 +488,6 @@
     </div>
   </div>
 
-  {#if $brushActive && $brushMode === 'eraser'}
-    <div 
-      class="eraser-cursor"
-      style="
-        left: {eraserCursorX}px;
-        top: {eraserCursorY}px;
-        width: {$brushWidth * scale}px;
-        height: {$brushWidth * scale}px;
-      "
-    ></div>
-  {/if}
-
   <div class="canvas-footer">
     <span>图层: {elements.length} 个元素</span>
     <span>|</span>
@@ -758,17 +739,6 @@
     inset: 0;
     pointer-events: none;
     z-index: 1;
-  }
-
-  .eraser-cursor {
-    position: fixed;
-    border: 2px solid var(--text-primary);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 1000;
-    transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.3);
-    mix-blend-mode: difference;
   }
 
   .canvas-empty {

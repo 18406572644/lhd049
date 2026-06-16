@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, afterUpdate, tick } from 'svelte'
   import { useProjectStore } from '@/stores/project'
   import { useBrushStore } from '@/stores/brush'
   import { v4 as uuidv4 } from 'uuid'
@@ -8,34 +8,31 @@
   const projectStore = useProjectStore()
   const brushStore = useBrushStore()
 
-  const {
-    canvasWidth,
-    canvasHeight,
-    drawings,
-  } = projectStore
-
-  const {
-    isActive,
-    mode,
-    shapeType,
-    color,
-    width,
-    opacity,
-    lineStyle,
-  } = brushStore
+  const { canvasWidth, canvasHeight, drawings } = projectStore
+  const { isActive, mode, shapeType, color, width, opacity, lineStyle } = brushStore
 
   let canvas: HTMLCanvasElement
-  let ctx: CanvasRenderingContext2D
+  let ctx: CanvasRenderingContext2D | null = null
   let isDrawing = false
   let currentPoints: Position[] = []
   let shiftKey = false
   let previewStroke: DrawingStroke | null = null
+  let initialized = false
+
+  function initCanvas() {
+    if (!canvas) return
+    canvas.width = $canvasWidth
+    canvas.height = $canvasHeight
+    ctx = canvas.getContext('2d')
+    initialized = true
+    redraw()
+  }
 
   function getCanvasPoint(e: MouseEvent | Touch): Position {
     const rect = canvas.getBoundingClientRect()
     return {
-      x: (e.clientX - rect.left) * ($canvasWidth / rect.width),
-      y: (e.clientY - rect.top) * ($canvasHeight / rect.height),
+      x: (e.clientX - rect.left) * ($canvasWidth / Math.max(rect.width, 1)),
+      y: (e.clientY - rect.top) * ($canvasHeight / Math.max(rect.height, 1)),
     }
   }
 
@@ -56,6 +53,13 @@
 
     if (stroke.type === 'freehand') {
       if (stroke.points.length < 2) {
+        if (stroke.points.length === 1) {
+          context.beginPath()
+          context.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, Math.PI * 2)
+          context.fillStyle = stroke.color
+          context.globalAlpha = stroke.opacity
+          context.fill()
+        }
         context.restore()
         return
       }
@@ -93,11 +97,13 @@
       } else if (stroke.type === 'line' || stroke.type === 'arrow') {
         const dx = ex - sx
         const dy = ey - sy
-        const angle = Math.atan2(dy, dx)
-        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4)
         const dist = Math.sqrt(dx * dx + dy * dy)
-        ex = sx + Math.cos(snappedAngle) * dist
-        ey = sy + Math.sin(snappedAngle) * dist
+        if (dist > 0) {
+          const angle = Math.atan2(dy, dx)
+          const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4)
+          ex = sx + Math.cos(snappedAngle) * dist
+          ey = sy + Math.sin(snappedAngle) * dist
+        }
       }
     }
 
@@ -122,24 +128,30 @@
           ex - headLen * Math.cos(angle - Math.PI / 6),
           ey - headLen * Math.sin(angle - Math.PI / 6)
         )
-        context.moveTo(ex, ey)
         context.lineTo(
           ex - headLen * Math.cos(angle + Math.PI / 6),
           ey - headLen * Math.sin(angle + Math.PI / 6)
         )
+        context.closePath()
         context.stroke()
         break
       }
 
-      case 'rectangle':
-        context.strokeRect(sx, sy, ex - sx, ey - sy)
+      case 'rectangle': {
+        const rx = Math.min(sx, ex)
+        const ry = Math.min(sy, ey)
+        const rw = Math.abs(ex - sx)
+        const rh = Math.abs(ey - sy)
+        context.strokeRect(rx, ry, rw, rh)
         break
+      }
 
       case 'circle': {
         const cx = (sx + ex) / 2
         const cy = (sy + ey) / 2
         const rx = Math.abs(ex - sx) / 2
         const ry = Math.abs(ey - sy) / 2
+        context.beginPath()
         context.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
         context.stroke()
         break
@@ -150,6 +162,7 @@
         const cy = (sy + ey) / 2
         const size = Math.max(Math.abs(ex - sx), Math.abs(ey - sy)) / 2
         const topY = cy - size * 0.4
+        context.beginPath()
         context.moveTo(cx, cy + size)
         context.bezierCurveTo(cx - size * 1.5, cy, cx - size, topY - size * 0.4, cx, topY + size * 0.2)
         context.bezierCurveTo(cx + size, topY - size * 0.4, cx + size * 1.5, cy, cx, cy + size)
@@ -163,6 +176,7 @@
         const outerR = Math.max(Math.abs(ex - sx), Math.abs(ey - sy)) / 2
         const innerR = outerR * 0.4
         const points = 5
+        context.beginPath()
         for (let i = 0; i < points * 2; i++) {
           const r = i % 2 === 0 ? outerR : innerR
           const a = (Math.PI / points) * i - Math.PI / 2
@@ -179,9 +193,10 @@
   }
 
   function redraw() {
-    if (!ctx) return
+    if (!ctx || !initialized) return
     ctx.clearRect(0, 0, $canvasWidth, $canvasHeight)
-    const allStrokes = [...$drawings]
+    const allStrokes: DrawingStroke[] = []
+    for (const s of $drawings) allStrokes.push(s)
     if (previewStroke) allStrokes.push(previewStroke)
     for (const stroke of allStrokes) {
       drawStroke(ctx, stroke)
@@ -194,7 +209,8 @@
     e.preventDefault()
     isDrawing = true
 
-    const point = e instanceof MouseEvent ? getCanvasPoint(e) : getCanvasPoint(e.touches[0])
+    const source = e instanceof MouseEvent ? e : e.touches[0]
+    const point = getCanvasPoint(source)
     currentPoints = [point]
 
     if ($mode === 'shape') {
@@ -207,7 +223,18 @@
         opacity: $opacity,
         lineStyle: $lineStyle,
       }
+    } else if ($mode === 'pen') {
+      previewStroke = {
+        id: uuidv4(),
+        type: 'freehand',
+        points: [point],
+        color: $color,
+        width: $width,
+        opacity: $opacity,
+        lineStyle: $lineStyle,
+      }
     }
+    redraw()
   }
 
   function handlePointerMove(e: MouseEvent | TouchEvent) {
@@ -215,7 +242,8 @@
     e.stopPropagation()
     e.preventDefault()
 
-    const point = e instanceof MouseEvent ? getCanvasPoint(e) : getCanvasPoint(e.touches[0])
+    const source = e instanceof MouseEvent ? e : e.touches[0]
+    const point = getCanvasPoint(source)
 
     if ($mode === 'pen') {
       currentPoints.push(point)
@@ -235,7 +263,7 @@
       }
     } else if ($mode === 'eraser') {
       currentPoints.push(point)
-      const eraserRadius = $width
+      const eraserRadius = Math.max($width, 10)
       const toRemove: string[] = []
       for (const stroke of $drawings) {
         if (strokeHitTest(stroke, point, eraserRadius)) {
@@ -252,10 +280,10 @@
 
   function handlePointerUp(e: MouseEvent | TouchEvent) {
     if (!isDrawing || !$isActive) return
-    e.stopPropagation()
+    if (e) e.stopPropagation && e.stopPropagation()
     isDrawing = false
 
-    if ($mode === 'pen' && currentPoints.length >= 2) {
+    if ($mode === 'pen' && currentPoints.length >= 1) {
       const stroke: DrawingStroke = {
         id: uuidv4(),
         type: 'freehand',
@@ -282,10 +310,11 @@
       ? stroke.points
       : getShapeOutlinePoints(stroke)
 
+    const r2 = radius * radius
     for (const p of checkPoints) {
       const dx = p.x - point.x
       const dy = p.y - point.y
-      if (dx * dx + dy * dy <= radius * radius) return true
+      if (dx * dx + dy * dy <= r2) return true
     }
     return false
   }
@@ -299,14 +328,14 @@
     switch (stroke.type) {
       case 'line':
       case 'arrow':
-        for (let t = 0; t <= 1; t += 0.05) {
+        for (let t = 0; t <= 1; t += 0.02) {
           pts.push({ x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t })
         }
         break
       case 'rectangle': {
         const x1 = Math.min(start.x, end.x), y1 = Math.min(start.y, end.y)
         const x2 = Math.max(start.x, end.x), y2 = Math.max(start.y, end.y)
-        const steps = 10
+        const steps = 20
         for (let i = 0; i <= steps; i++) {
           pts.push({ x: x1 + (x2 - x1) * i / steps, y: y1 })
           pts.push({ x: x1 + (x2 - x1) * i / steps, y: y2 })
@@ -318,7 +347,7 @@
       case 'circle': {
         const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2
         const rx = Math.abs(end.x - start.x) / 2, ry = Math.abs(end.y - start.y) / 2
-        for (let a = 0; a < Math.PI * 2; a += 0.2) {
+        for (let a = 0; a < Math.PI * 2; a += 0.1) {
           pts.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) })
         }
         break
@@ -337,13 +366,24 @@
     if (e.key === 'Shift') shiftKey = false
   }
 
-  $: if ($drawings || previewStroke) redraw()
+  $: $canvasWidth, $canvasHeight, (async () => {
+    if (initialized) {
+      await tick()
+      if (canvas) {
+        canvas.width = $canvasWidth
+        canvas.height = $canvasHeight
+        ctx = canvas.getContext('2d')
+        redraw()
+      }
+    }
+  })()
+
+  $: $drawings, previewStroke, (() => {
+    if (initialized) redraw()
+  })()
 
   onMount(() => {
-    if (canvas) {
-      ctx = canvas.getContext('2d')!
-      redraw()
-    }
+    initCanvas()
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
   })
@@ -354,17 +394,9 @@
   })
 </script>
 
-<svelte:window
-  on:keydown={handleKeyDown}
-  on:keyup={handleKeyUp}
-/>
-
 <canvas
   class="drawing-canvas"
   bind:this={canvas}
-  width={$canvasWidth}
-  height={$canvasHeight}
-  style="width: {$canvasWidth}px; height: {$canvasHeight}px;"
   on:mousedown={handlePointerDown}
   on:mousemove={handlePointerMove}
   on:mouseup={handlePointerUp}
@@ -372,25 +404,42 @@
   on:touchstart={handlePointerDown}
   on:touchmove={handlePointerMove}
   on:touchend={handlePointerUp}
+  on:touchcancel={handlePointerUp}
   class:active={$isActive}
   class:eraser={$isActive && $mode === 'eraser'}
+  class:pen={$isActive && $mode === 'pen'}
+  class:shape={$isActive && $mode === 'shape'}
 />
 
 <style lang="scss">
   .drawing-canvas {
     position: absolute;
-    inset: 0;
-    z-index: 10;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
     pointer-events: none;
     cursor: default;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 
     &.active {
       pointer-events: auto;
+    }
+
+    &.pen {
+      cursor: crosshair;
+    }
+
+    &.shape {
       cursor: crosshair;
     }
 
     &.eraser {
-      cursor: none;
+      cursor: cell;
     }
   }
 </style>

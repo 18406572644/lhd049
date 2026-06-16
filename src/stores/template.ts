@@ -152,4 +152,7 @@ function createTemplateStore() {
   }
 }
 
-export const useTemplateStore = createTemplateStore
+const _templateInstance = createTemplateStore()
+export function useTemplateStore() {
+  return _templateInstance
+}
