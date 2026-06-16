@@ -2,14 +2,17 @@
   import { onMount, onDestroy, setContext } from 'svelte'
   import { useProjectStore } from '@/stores/project'
   import { useTapeStore } from '@/stores/tape'
+  import { useBrushStore } from '@/stores/brush'
   import { useToast } from '@/utils/toast'
   import CanvasElement from './CanvasElement.svelte'
+  import DrawingCanvas from './DrawingCanvas.svelte'
   import { createDragHandler, clamp } from '@/utils/drag'
   import { MACARON_COLORS, HAND_WRITING_FONTS } from '@/types'
-  import type { AnyCanvasElement, NoteElement } from '@/types'
+  import type { AnyCanvasElement, NoteElement, BrushMode, ShapeType, LineStyle } from '@/types'
 
   const projectStore = useProjectStore()
   const tapeStore = useTapeStore()
+  const brushStore = useBrushStore()
   const { showToast } = useToast()
 
   const {
@@ -25,8 +28,19 @@
     sortedElements,
     selectedElementId,
     selectedElement,
-    resetSignal
+    resetSignal,
+    drawings,
   } = projectStore
+
+  const {
+    isActive: brushActive,
+    mode: brushMode,
+    shapeType: brushShapeType,
+    color: brushColor,
+    width: brushWidth,
+    opacity: brushOpacity,
+    lineStyle: brushLineStyle,
+  } = brushStore
 
   let canvasContainer: HTMLElement
   let canvasContent: HTMLElement
@@ -35,6 +49,9 @@
   let panStartY = 0
   let offsetX = 0
   let offsetY = 0
+  let eraserCursorX = 0
+  let eraserCursorY = 0
+  let showEraserCursor = false
 
   $: scale = $zoom / 100
   $: scaleRef.value = scale
@@ -58,6 +75,21 @@
   $: currentGridColor = $gridColor
   $: currentShowGrid = $showGrid
   $: currentBackgroundOpacity = $backgroundOpacity
+
+  const shapeOptions: { type: ShapeType; icon: string; label: string }[] = [
+    { type: 'line', icon: '📏', label: '直线' },
+    { type: 'arrow', icon: '➡', label: '箭头' },
+    { type: 'rectangle', icon: '⬜', label: '矩形' },
+    { type: 'circle', icon: '⭕', label: '圆形' },
+    { type: 'heart', icon: '💖', label: '心形' },
+    { type: 'star', icon: '⭐', label: '星形' },
+  ]
+
+  const lineStyleOptions: { style: LineStyle; icon: string; label: string }[] = [
+    { style: 'solid', icon: '—', label: '实线' },
+    { style: 'dashed', icon: '- -', label: '虚线' },
+    { style: 'dotted', icon: '···', label: '点线' },
+  ]
 
   function getPatternStyle(patternId: string): string {
     const pattern = backgroundPatterns.find(p => p.id === patternId)
@@ -83,6 +115,7 @@
   }
 
   function handleCanvasClick(e: MouseEvent) {
+    if ($brushActive) return
     if (e.target === canvasContent || (e.target as HTMLElement).classList.contains('canvas-content')) {
       projectStore.selectElement(null)
     }
@@ -102,6 +135,10 @@
       offsetX = e.clientX - panStartX
       offsetY = e.clientY - panStartY
       e.preventDefault()
+    }
+    if ($brushActive && $brushMode === 'eraser') {
+      eraserCursorX = e.clientX
+      eraserCursorY = e.clientY
     }
   }
 
@@ -141,7 +178,49 @@
     showToast('已添加文字便签', 'success')
   }
 
+  function toggleBrush() {
+    const newState = !$brushActive
+    brushStore.setActive(newState)
+    if (newState) {
+      brushStore.setMode('pen')
+      showToast('画笔模式已开启', 'info')
+    } else {
+      showToast('画笔模式已关闭', 'info')
+    }
+  }
+
+  function setBrushMode(m: BrushMode) {
+    brushStore.setMode(m)
+  }
+
+  function handleBrushColorInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    brushStore.setColor(target.value)
+  }
+
+  function handleBrushWidthInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    brushStore.setWidth(Number(target.value))
+  }
+
+  function handleBrushOpacityInput(e: Event) {
+    const target = e.target as HTMLInputElement
+    brushStore.setOpacity(Number(target.value) / 100)
+  }
+
+  function handleClearDrawings() {
+    if ($drawings.length === 0) return
+    projectStore.clearDrawings()
+    showToast('画笔内容已清除', 'info')
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && $brushActive) {
+      brushStore.setActive(false)
+      showToast('画笔模式已关闭', 'info')
+      return
+    }
+
     if (!$selectedElementId) return
     
     const target = e.target as HTMLElement
@@ -203,36 +282,187 @@
   on:mousedown={handleCanvasMouseDown}
   on:wheel={handleWheel}
   class:is-panning={isPanning}
+  class:brush-mode={$brushActive}
 >
   <div class="canvas-toolbar">
-      <button class="btn btn-sm" on:click={handleAddNote} title="添加便签">
-        <span>📝</span> 便签
-      </button>
-      <button class="btn btn-sm" on:click={resetView} title="重置视图">
-        <span>🎯</span> 重置
-      </button>
-      <div class="canvas-size">
-        {$canvasWidth} × {$canvasHeight}
-      </div>
+    <button class="btn btn-sm" on:click={handleAddNote} title="添加便签">
+      <span>📝</span> 便签
+    </button>
+    <button 
+      class="btn btn-sm {$brushActive ? 'btn-primary' : ''}" 
+      on:click={toggleBrush} 
+      title="画笔工具"
+    >
+      <span>🖌</span> 画笔
+    </button>
+    <button class="btn btn-sm" on:click={resetView} title="重置视图">
+      <span>🎯</span> 重置
+    </button>
+    <div class="canvas-size">
+      {$canvasWidth} × {$canvasHeight}
     </div>
+  </div>
+
+  {#if $brushActive}
+    <div class="brush-settings-bar">
+      <div class="brush-settings-group">
+        <div class="mode-buttons">
+          <button 
+            class="mode-btn {$brushMode === 'pen' ? 'active' : ''}"
+            on:click={() => setBrushMode('pen')}
+            title="自由绘制"
+          >
+            ✏️ 画笔
+          </button>
+          <button 
+            class="mode-btn {$brushMode === 'eraser' ? 'active' : ''}"
+            on:click={() => setBrushMode('eraser')}
+            title="橡皮擦"
+          >
+            🧹 橡皮擦
+          </button>
+          <button 
+            class="mode-btn {$brushMode === 'shape' ? 'active' : ''}"
+            on:click={() => setBrushMode('shape')}
+            title="形状工具"
+          >
+            📐 形状
+          </button>
+        </div>
+      </div>
+
+      <div class="brush-settings-divider"></div>
+
+      {#if $brushMode !== 'eraser'}
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>颜色</span>
+            <div class="color-picker-wrapper">
+              <input 
+                type="color" 
+                class="brush-color-picker"
+                value={$brushColor}
+                on:input={handleBrushColorInput}
+              />
+              <span class="color-hex">{$brushColor}</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="brush-settings-divider"></div>
+
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>粗细</span>
+            <input 
+              type="range" 
+              min="1" 
+              max="20" 
+              value={$brushWidth}
+              on:input={handleBrushWidthInput}
+              class="brush-slider"
+            />
+            <span class="setting-value">{$brushWidth}px</span>
+          </label>
+        </div>
+
+        <div class="brush-settings-divider"></div>
+
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>透明度</span>
+            <input 
+              type="range" 
+              min="10" 
+              max="100" 
+              value={Math.round($brushOpacity * 100)}
+              on:input={handleBrushOpacityInput}
+              class="brush-slider"
+            />
+            <span class="setting-value">{Math.round($brushOpacity * 100)}%</span>
+          </label>
+        </div>
+
+        <div class="brush-settings-divider"></div>
+
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>线型</span>
+            <div class="line-style-buttons">
+              {#each lineStyleOptions as opt}
+                <button 
+                  class="line-style-btn {$brushLineStyle === opt.style ? 'active' : ''}"
+                  on:click={() => brushStore.setLineStyle(opt.style)}
+                  title={opt.label}
+                >
+                  {opt.icon}
+                </button>
+              {/each}
+            </div>
+          </label>
+        </div>
+      {:else}
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>擦除大小</span>
+            <input 
+              type="range" 
+              min="1" 
+              max="20" 
+              value={$brushWidth}
+              on:input={handleBrushWidthInput}
+              class="brush-slider"
+            />
+            <span class="setting-value">{$brushWidth}px</span>
+          </label>
+        </div>
+      {/if}
+
+      {#if $brushMode === 'shape'}
+        <div class="brush-settings-divider"></div>
+        <div class="brush-settings-group">
+          <label class="setting-label">
+            <span>形状</span>
+            <div class="shape-buttons">
+              {#each shapeOptions as opt}
+                <button 
+                  class="shape-btn {$brushShapeType === opt.type ? 'active' : ''}"
+                  on:click={() => brushStore.setShapeType(opt.type)}
+                  title={opt.label}
+                >
+                  {opt.icon}
+                </button>
+              {/each}
+            </div>
+          </label>
+        </div>
+      {/if}
+
+      <div class="brush-settings-divider"></div>
+
+      <button class="btn btn-sm btn-danger" on:click={handleClearDrawings} title="清除画笔" disabled={$drawings.length === 0}>
+        🗑️ 清除笔迹
+      </button>
+    </div>
+  {/if}
 
   <div 
-      class="canvas-wrapper"
-      style="transform: translate({offsetX}px, {offsetY}px) scale({scale});"
+    class="canvas-wrapper"
+    style="transform: translate({offsetX}px, {offsetY}px) scale({scale});"
+  >
+    <div 
+      class="canvas-content"
+      bind:this={canvasContent}
+      style="
+        width: {$canvasWidth}px;
+        height: {$canvasHeight}px;
+        background-color: {$backgroundColor};
+        opacity: {currentBackgroundOpacity};
+        {getPatternStyle($backgroundPattern)}
+      "
+      on:click={handleCanvasClick}
     >
-      <div 
-        class="canvas-content"
-        bind:this={canvasContent}
-        style="
-          width: {$canvasWidth}px;
-          height: {$canvasHeight}px;
-          background-color: {$backgroundColor};
-          opacity: {currentBackgroundOpacity};
-          {getPatternStyle($backgroundPattern)}
-        "
-        on:click={handleCanvasClick}
-      >
-        <div class="grid-overlay" style="{getGridOverlayStyle()}"></div>
+      <div class="grid-overlay" style="{getGridOverlayStyle()}"></div>
       {#each elements as element (element.id)}
         <CanvasElement
           element={element}
@@ -243,7 +473,9 @@
         />
       {/each}
 
-      {#if elements.length === 0}
+      <DrawingCanvas />
+
+      {#if elements.length === 0 && $drawings.length === 0}
         <div class="canvas-empty">
           <div class="empty-decorations">
             <span class="deco deco-1">🎀</span>
@@ -263,6 +495,18 @@
     </div>
   </div>
 
+  {#if $brushActive && $brushMode === 'eraser'}
+    <div 
+      class="eraser-cursor"
+      style="
+        left: {eraserCursorX}px;
+        top: {eraserCursorY}px;
+        width: {$brushWidth * scale}px;
+        height: {$brushWidth * scale}px;
+      "
+    ></div>
+  {/if}
+
   <div class="canvas-footer">
     <span>图层: {elements.length} 个元素</span>
     <span>|</span>
@@ -270,6 +514,10 @@
     {#if $selectedElementId}
       <span>|</span>
       <span>已选中: {$selectedElement?.type}</span>
+    {/if}
+    {#if $drawings.length > 0}
+      <span>|</span>
+      <span>画笔: {$drawings.length} 笔</span>
     {/if}
   </div>
 </div>
@@ -286,6 +534,12 @@
     
     &.is-panning {
       cursor: grabbing;
+    }
+
+    &.brush-mode {
+      :global(.canvas-element) {
+        pointer-events: none;
+      }
     }
   }
 
@@ -304,6 +558,169 @@
     border-radius: var(--border-radius-lg);
     z-index: 100;
     box-shadow: var(--shadow-md);
+  }
+
+  .brush-settings-bar {
+    position: absolute;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
+    border: 2px solid var(--text-primary);
+    border-radius: var(--border-radius-lg);
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+    flex-wrap: wrap;
+    max-width: 90vw;
+    justify-content: center;
+  }
+
+  .brush-settings-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .brush-settings-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--macaron-gray);
+    flex-shrink: 0;
+  }
+
+  .setting-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-hand);
+    font-size: 13px;
+    color: var(--text-primary);
+    white-space: nowrap;
+
+    > span:first-child {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+  }
+
+  .setting-value {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 36px;
+    text-align: right;
+    font-family: var(--font-body);
+  }
+
+  .mode-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mode-btn {
+    padding: 4px 10px;
+    border: 2px solid var(--text-primary);
+    border-radius: var(--border-radius-sm);
+    background: var(--macaron-white);
+    font-family: var(--font-hand);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    &:hover {
+      background: var(--macaron-cream);
+    }
+
+    &.active {
+      background: var(--macaron-pink);
+      color: white;
+      box-shadow: 1px 1px 0 var(--text-primary);
+    }
+  }
+
+  .brush-color-picker {
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--text-primary);
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 2px;
+    }
+
+    &::-webkit-color-swatch {
+      border: none;
+      border-radius: 50%;
+    }
+  }
+
+  .color-hex {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+  }
+
+  .brush-slider {
+    width: 80px;
+    cursor: pointer;
+  }
+
+  .line-style-buttons {
+    display: flex;
+    gap: 3px;
+  }
+
+  .line-style-btn {
+    padding: 3px 8px;
+    border: 2px solid var(--text-primary);
+    border-radius: var(--border-radius-sm);
+    background: var(--macaron-white);
+    font-family: var(--font-body);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    &:hover {
+      background: var(--macaron-cream);
+    }
+
+    &.active {
+      background: var(--macaron-blue);
+      color: white;
+    }
+  }
+
+  .shape-buttons {
+    display: flex;
+    gap: 3px;
+  }
+
+  .shape-btn {
+    padding: 3px 6px;
+    border: 2px solid var(--text-primary);
+    border-radius: var(--border-radius-sm);
+    background: var(--macaron-white);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    line-height: 1;
+
+    &:hover {
+      background: var(--macaron-cream);
+      transform: translateY(-1px);
+    }
+
+    &.active {
+      background: var(--macaron-purple);
+      box-shadow: 1px 1px 0 var(--text-primary);
+    }
   }
 
   .canvas-size {
@@ -343,6 +760,17 @@
     z-index: 1;
   }
 
+  .eraser-cursor {
+    position: fixed;
+    border: 2px solid var(--text-primary);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1000;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.3);
+    mix-blend-mode: difference;
+  }
+
   .canvas-empty {
     position: absolute;
     inset: 0;
@@ -353,6 +781,7 @@
     text-align: center;
     padding: 40px;
     pointer-events: none;
+    z-index: 0;
   }
 
   .empty-decorations {

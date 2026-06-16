@@ -46,6 +46,20 @@ export interface NoteElement extends CanvasElement {
 
 export type AnyCanvasElement = TapeElement | StickerElement | NoteElement
 
+export type ShapeType = 'line' | 'arrow' | 'rectangle' | 'circle' | 'heart' | 'star'
+export type BrushMode = 'pen' | 'eraser' | 'shape'
+export type LineStyle = 'solid' | 'dashed' | 'dotted'
+
+export interface DrawingStroke {
+  id: string
+  type: 'freehand' | ShapeType
+  points: Position[]
+  color: string
+  width: number
+  opacity: number
+  lineStyle: LineStyle
+}
+
 export interface TapeAsset {
   id: string
   name: string
@@ -76,6 +90,7 @@ export interface ProjectData {
   showRuler: boolean
   snapToGrid: boolean
   elements: AnyCanvasElement[]
+  drawings?: DrawingStroke[]
 }
 
 export interface Category {

@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store'
-import type { AnyCanvasElement, ProjectData, Category } from '@/types'
+import type { AnyCanvasElement, ProjectData, Category, DrawingStroke } from '@/types'
 import { DEFAULT_CATEGORIES, MACARON_COLORS } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -18,6 +18,7 @@ function createProjectStore() {
   const showRuler = writable(false)
   const snapToGrid = writable(false)
   const elements = writable<AnyCanvasElement[]>([])
+  const drawings = writable<DrawingStroke[]>([])
   const selectedElementId = writable<string | null>(null)
   const zoom = writable(100)
   const categories = writable<Category[]>([...DEFAULT_CATEGORIES])
@@ -176,8 +177,26 @@ function createProjectStore() {
     }
   }
 
+  function addDrawing(stroke: DrawingStroke) {
+    drawings.update(s => [...s, stroke])
+  }
+
+  function removeDrawing(id: string) {
+    drawings.update(s => s.filter(stroke => stroke.id !== id))
+  }
+
+  function removeDrawings(ids: string[]) {
+    const idSet = new Set(ids)
+    drawings.update(s => s.filter(stroke => !idSet.has(stroke.id)))
+  }
+
+  function clearDrawings() {
+    drawings.set([])
+  }
+
   function clearCanvas() {
     elements.set([])
+    drawings.set([])
     selectedElementId.set(null)
   }
 
@@ -209,6 +228,7 @@ function createProjectStore() {
     showRuler.set(data.showRuler ?? false)
     snapToGrid.set(data.snapToGrid ?? false)
     elements.set(data.elements)
+    drawings.set(data.drawings ?? [])
     selectedElementId.set(null)
     resetSignal.update(s => s + 1)
   }
@@ -226,6 +246,7 @@ function createProjectStore() {
       showRuler: get(showRuler),
       snapToGrid: get(snapToGrid),
       elements: get(elements),
+      drawings: get(drawings),
     }
   }
 
@@ -244,6 +265,7 @@ function createProjectStore() {
     showRuler.set(false)
     snapToGrid.set(false)
     elements.set([])
+    drawings.set([])
     selectedElementId.set(null)
     zoom.set(100)
     resetSignal.update(s => s + 1)
@@ -264,6 +286,7 @@ function createProjectStore() {
     showRuler,
     snapToGrid,
     elements,
+    drawings,
     selectedElementId,
     selectedElement,
     sortedElements,
@@ -289,6 +312,10 @@ function createProjectStore() {
     moveForward,
     moveBackward,
     duplicateElement,
+    addDrawing,
+    removeDrawing,
+    removeDrawings,
+    clearDrawings,
     clearCanvas,
     setZoom,
     setProjectName,
