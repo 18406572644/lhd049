@@ -50,6 +50,9 @@
   let offsetX = 0
   let offsetY = 0
 
+  const scaleRef = { value: 1 }
+  setContext('canvasScale', scaleRef)
+
   $: scale = $zoom / 100
   $: scaleRef.value = scale
   $: elements = $sortedElements
@@ -57,9 +60,6 @@
     offsetX = 0
     offsetY = 0
   }
-
-  const scaleRef = { value: 1 }
-  setContext('canvasScale', scaleRef)
 
   const backgroundPatterns = [
     { id: 'none', name: '无', pattern: '' },

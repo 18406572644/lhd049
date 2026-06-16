@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
-use tauri::api::dialog;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Project {
@@ -99,7 +99,7 @@ fn delete_tape(path: String) -> Result<(), String> {
 #[tauri::command]
 fn export_image(path: String, data: String) -> Result<String, String> {
     let data = data.strip_prefix("data:image/png;base64,").unwrap_or(&data);
-    let bytes = base64::decode(data).map_err(|e| e.to_string())?;
+    let bytes = STANDARD.decode(data).map_err(|e| e.to_string())?;
     fs::write(&path, bytes).map_err(|e| e.to_string())?;
     Ok(path)
 }

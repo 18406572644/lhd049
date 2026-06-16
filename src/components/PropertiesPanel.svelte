@@ -251,9 +251,9 @@
       📄 画布
     </button>
     <button 
-      class="tab-btn {activeTab === 'element' ? 'active' : ''}"
+      class="tab-btn {activeTab === 'element' ? 'active' : ''} {!hasSelection ? 'disabled' : ''}"
       on:click={() => activeTab = 'element'}
-      class:disabled={!hasSelection}
+      disabled={!hasSelection}
     >
       🎨 元素 {hasSelection ? `(${$selectedElement?.type})` : ''}
     </button>
@@ -981,9 +981,5 @@
     &:hover {
       background: #ff5252 !important;
     }
-  }
-
-  .w-full {
-    width: 100%;
   }
 </style>

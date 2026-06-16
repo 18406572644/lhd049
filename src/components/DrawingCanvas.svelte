@@ -366,21 +366,24 @@
     if (e.key === 'Shift') shiftKey = false
   }
 
-  $: $canvasWidth, $canvasHeight, (async () => {
-    if (initialized) {
-      await tick()
-      if (canvas) {
-        canvas.width = $canvasWidth
-        canvas.height = $canvasHeight
-        ctx = canvas.getContext('2d')
-        redraw()
-      }
+  async function handleCanvasResize() {
+    if (!initialized) return
+    await tick()
+    if (canvas) {
+      canvas.width = $canvasWidth
+      canvas.height = $canvasHeight
+      ctx = canvas.getContext('2d')
+      redraw()
     }
-  })()
+  }
 
-  $: $drawings, previewStroke, (() => {
+  $: $canvasWidth, $canvasHeight, handleCanvasResize()
+
+  function handleDrawingsChange() {
     if (initialized) redraw()
-  })()
+  }
+
+  $: $drawings, previewStroke, handleDrawingsChange()
 
   onMount(() => {
     initCanvas()
