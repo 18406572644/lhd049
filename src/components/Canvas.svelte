@@ -20,7 +20,8 @@
     backgroundPattern,
     sortedElements,
     selectedElementId,
-    selectedElement
+    selectedElement,
+    resetSignal
   } = projectStore
 
   let canvasContainer: HTMLElement
@@ -34,6 +35,10 @@
   $: scale = $zoom / 100
   $: scaleRef.value = scale
   $: elements = $sortedElements
+  $: if ($resetSignal) {
+    offsetX = 0
+    offsetY = 0
+  }
 
   const scaleRef = { value: 1 }
   setContext('canvasScale', scaleRef)

@@ -112,3 +112,35 @@ export const HAND_WRITING_FONTS = [
   'Comic Sans MS',
   'cursive',
 ]
+
+export type TemplateCategory = 
+  | 'daily' 
+  | 'weekly' 
+  | 'monthly' 
+  | 'travel' 
+  | 'reading' 
+  | 'festival' 
+  | 'custom'
+
+export interface Template {
+  id: string
+  name: string
+  category: TemplateCategory
+  description: string
+  thumbnail: string
+  isBuiltin: boolean
+  keepTapeReferences: boolean
+  createdAt: string
+  data: ProjectData
+}
+
+export const TEMPLATE_CATEGORIES: { id: TemplateCategory | 'all'; name: string; icon: string; color: string }[] = [
+  { id: 'all', name: '全部', icon: '📚', color: '#DDA0DD' },
+  { id: 'daily', name: '日记页', icon: '📔', color: '#FFB6C1' },
+  { id: 'weekly', name: '周计划', icon: '📅', color: '#87CEEB' },
+  { id: 'monthly', name: '月计划', icon: '🗓️', color: '#98FB98' },
+  { id: 'travel', name: '旅行手账', icon: '✈️', color: '#FFDAB9' },
+  { id: 'reading', name: '读书笔记', icon: '📖', color: '#F0E68C' },
+  { id: 'festival', name: '节日贺卡', icon: '🎊', color: '#DDA0DD' },
+  { id: 'custom', name: '我的模板', icon: '⭐', color: '#FFA07A' },
+]

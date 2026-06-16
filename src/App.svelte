@@ -8,6 +8,8 @@
   import Canvas from '@/components/Canvas.svelte'
   import PropertiesPanel from '@/components/PropertiesPanel.svelte'
   import ProjectManager from '@/components/ProjectManager.svelte'
+  import TemplateLibrary from '@/components/TemplateLibrary.svelte'
+  import SaveTemplateDialog from '@/components/SaveTemplateDialog.svelte'
   import { useToast, toasts } from '@/utils/toast'
 
   const projectStore = useProjectStore()
@@ -15,6 +17,8 @@
   const { showToast } = useToast()
 
   let showProjectManager = false
+  let showTemplateLibrary = false
+  let showSaveTemplateDialog = false
 
   onMount(async () => {
     try {
@@ -32,11 +36,29 @@
   function handleCloseProjects() {
     showProjectManager = false
   }
+
+  function handleOpenTemplates() {
+    showTemplateLibrary = true
+  }
+
+  function handleCloseTemplates() {
+    showTemplateLibrary = false
+  }
+
+  function handleSaveTemplate() {
+    showSaveTemplateDialog = true
+  }
+
+  function handleCloseSaveTemplate() {
+    showSaveTemplateDialog = false
+  }
 </script>
 
 <div class="app-container">
   <Header 
     on:open-projects={handleOpenProjects}
+    on:open-templates={handleOpenTemplates}
+    on:save-template={handleSaveTemplate}
   />
   
   <div class="main-content">
@@ -55,6 +77,14 @@
 
   {#if showProjectManager}
     <ProjectManager on:close={handleCloseProjects} />
+  {/if}
+
+  {#if showTemplateLibrary}
+    <TemplateLibrary on:close={handleCloseTemplates} />
+  {/if}
+
+  {#if showSaveTemplateDialog}
+    <SaveTemplateDialog on:close={handleCloseSaveTemplate} />
   {/if}
 
   <div id="toast-container">

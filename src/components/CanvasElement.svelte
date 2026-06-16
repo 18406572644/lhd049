@@ -2,11 +2,13 @@
   import { onMount, onDestroy, getContext } from 'svelte'
   import { useTapeStore } from '@/stores/tape'
   import { createDragHandler, createResizeHandler, clamp } from '@/utils/drag'
-  import type { AnyCanvasElement, TapeElement, NoteElement } from '@/types'
+  import type { AnyCanvasElement, TapeElement, NoteElement, TapeAsset } from '@/types'
   import { createEventDispatcher } from 'svelte'
+  import { get } from 'svelte/store'
 
   const dispatch = createEventDispatcher()
   const tapeStore = useTapeStore()
+  const { tapes } = tapeStore
 
   export let element: AnyCanvasElement
   export let isSelected: boolean
@@ -18,23 +20,37 @@
   let cleanupResize: (() => void) | null = null
   let initialX: number
   let initialY: number
+  let dragX: number
+  let dragY: number
   let initialWidth: number
   let initialHeight: number
+  let resizeWidth: number
+  let resizeHeight: number
+  let resizeX: number
+  let resizeY: number
   let aspectRatio: number
+  let isDragging = false
+  let isResizing = false
 
   const canvasScale: { value: number } = getContext('canvasScale') || { value: 1 }
 
   $: tapeId = element.type === 'tape' ? (element as TapeElement).tapeId : null
-  $: tape = tapeId ? tapeStore.getTapeById(tapeId) : null
+  $: tape = tapeId ? $tapes.find((t: TapeAsset) => t.id === tapeId) || null : null
   $: isLocked = element.locked
   $: note = element.type === 'note' ? (element as NoteElement) : null
+  $: displayX = isDragging ? dragX : element.x
+  $: displayY = isDragging ? dragY : element.y
+  $: displayWidth = isResizing ? resizeWidth : element.width
+  $: displayHeight = isResizing ? resizeHeight : element.height
+  $: displayLeft = isResizing ? resizeX : element.x
+  $: displayTop = isResizing ? resizeY : element.y
 
   function getTapeStyle() {
     if (element.type !== 'tape' || !tape) return ''
     
     return `
       background-image: url('${tape.data}');
-      background-size: ${element.height * (tape.width / tape.height)}px ${element.height}px;
+      background-size: ${displayHeight * (tape.width / tape.height)}px ${displayHeight}px;
       background-repeat: repeat-x;
       background-position: center;
     `
@@ -89,14 +105,20 @@
       onStart: () => {
         initialX = element.x
         initialY = element.y
+        dragX = element.x
+        dragY = element.y
+        isDragging = true
       },
       onMove: (delta) => {
         const scale = canvasScale.value
-        const newX = initialX + delta.x / scale
-        const newY = initialY + delta.y / scale
-        dispatch('update', { x: newX, y: newY })
+        dragX = initialX + delta.x / scale
+        dragY = initialY + delta.y / scale
       },
       onEnd: () => {
+        const finalX = dragX
+        const finalY = dragY
+        isDragging = false
+        dispatch('update', { x: finalX, y: finalY })
         dispatch('drag-end')
       },
       button: 0,
@@ -119,6 +141,11 @@
         initialHeight = element.height
         initialX = element.x
         initialY = element.y
+        resizeWidth = element.width
+        resizeHeight = element.height
+        resizeX = element.x
+        resizeY = element.y
+        isResizing = true
       },
       onResize: (handle, delta) => {
         const scale = canvasScale.value
@@ -144,11 +171,22 @@
           newY = initialY + (initialHeight - newHeight)
         }
 
+        resizeWidth = newWidth
+        resizeHeight = newHeight
+        resizeX = newX
+        resizeY = newY
+      },
+      onEnd: () => {
+        const finalWidth = resizeWidth
+        const finalHeight = resizeHeight
+        const finalX = resizeX
+        const finalY = resizeY
+        isResizing = false
         dispatch('update', {
-          width: newWidth,
-          height: newHeight,
-          x: newX,
-          y: newY,
+          width: finalWidth,
+          height: finalHeight,
+          x: finalX,
+          y: finalY,
         })
       },
     })
@@ -172,13 +210,13 @@
 </script>
 
 <div
-  class="canvas-element {element.type} {isSelected ? 'selected' : ''} {isLocked ? 'locked' : ''}"
+  class="canvas-element {element.type} {isSelected ? 'selected' : ''} {isLocked ? 'locked' : ''} {isDragging ? 'is-dragging' : ''} {isResizing ? 'is-resizing' : ''}"
   bind:this={elementRef}
   style="
-    left: {element.x}px;
-    top: {element.y}px;
-    width: {element.width}px;
-    height: {element.height}px;
+    left: {displayX}px;
+    top: {displayY}px;
+    width: {displayWidth}px;
+    height: {displayHeight}px;
     transform: rotate({element.rotation}deg);
     z-index: {element.zIndex};
     opacity: {element.opacity};
@@ -260,6 +298,18 @@
     &.note {
       border-radius: 4px;
       overflow: hidden;
+    }
+    
+    &.is-dragging {
+      cursor: grabbing;
+      box-shadow: 0 8px 25px rgba(93, 78, 94, 0.3);
+      transition: none;
+    }
+    
+    &.is-resizing {
+      cursor: nwse-resize;
+      box-shadow: 0 8px 25px rgba(93, 78, 94, 0.3);
+      transition: none;
     }
   }
 

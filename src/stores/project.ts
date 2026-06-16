@@ -15,6 +15,7 @@ function createProjectStore() {
   const selectedElementId = writable<string | null>(null)
   const zoom = writable(100)
   const categories = writable<Category[]>([...DEFAULT_CATEGORIES])
+  const resetSignal = writable(0)
 
   const selectedElement = derived([elements, selectedElementId], ([$elements, $selectedId]) => {
     if (!$selectedId) return null
@@ -196,6 +197,7 @@ function createProjectStore() {
     elements.set([])
     selectedElementId.set(null)
     zoom.set(100)
+    resetSignal.update(s => s + 1)
   }
 
   return {
@@ -213,6 +215,7 @@ function createProjectStore() {
     zoom,
     categories,
     maxZIndex,
+    resetSignal,
     setCanvasSize,
     setBackgroundColor,
     setBackgroundPattern,

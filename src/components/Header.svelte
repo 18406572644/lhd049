@@ -16,6 +16,14 @@
     zoom 
   } = projectStore
 
+  function handleOpenTemplates() {
+    dispatch('open-templates')
+  }
+
+  function handleSaveAsTemplate() {
+    dispatch('save-template')
+  }
+
   let projectName: string
 
   $: projectName = $currentProjectName
@@ -148,8 +156,14 @@
     <button class="btn btn-sm btn-success" on:click={() => dispatch('open-projects')} title="项目管理">
       <span>📁</span> 项目
     </button>
+    <button class="btn btn-sm btn-warning" on:click={handleOpenTemplates} title="模板库">
+      <span>📚</span> 模板
+    </button>
+    <button class="btn btn-sm btn-secondary" on:click={handleSaveAsTemplate} title="保存为模板">
+      <span>⭐</span> 存为模板
+    </button>
     <button class="btn btn-sm btn-secondary" on:click={handleExportData} title="导出数据">
-      <span>�</span> 导出
+      <span>⬆</span> 导出
     </button>
   </div>
 </header>
