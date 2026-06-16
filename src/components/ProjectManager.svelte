@@ -71,8 +71,17 @@
   async function handleImportProject() {
     const result = await openProjectDialog()
     if (result) {
-      await loadProjects()
-      showToast('项目导入成功', 'success')
+      projectStore.loadProjectData(result.project.data)
+      projectStore.setProjectName(result.project.name)
+      projectStore.currentProjectId.set(result.project.id)
+      
+      const category = DEFAULT_CATEGORIES.find(c => c.name === result.project.category) || DEFAULT_CATEGORIES[0]
+      projectStore.setCategory(category)
+      
+      addRecentProject(projectToRecent(result.project, result.path))
+      
+      showToast(`已导入「${result.project.name}」`, 'success')
+      dispatch('close')
     }
   }
 

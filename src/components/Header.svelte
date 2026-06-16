@@ -290,6 +290,7 @@
     backdrop-filter: blur(10px);
     border-bottom: 3px solid var(--text-primary);
     position: relative;
+    z-index: 100;
     
     &::before {
       content: '';
@@ -421,7 +422,7 @@
     border: 2px solid var(--text-primary);
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-lg);
-    z-index: 1000;
+    z-index: 10000;
     overflow: hidden;
     animation: slideDown 0.2s ease;
   }
